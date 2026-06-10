@@ -2,7 +2,7 @@ export const VERTEX_CONFIG = {
   project: process.env.GOOGLE_CLOUD_PROJECT_ID!,
   location: process.env.GOOGLE_CLOUD_REGION || 'us-central1',
   agentId: process.env.VERTEX_AI_AGENT_ID!,
-  model: 'gemini-2.0-flash-001',
+  model: 'gemini-3-flash-preview',
 };
 
 export function getAgentEndpoint(): string {

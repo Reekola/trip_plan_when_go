@@ -11,7 +11,7 @@ import path from 'path';
 dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../.env.local') });
 
 const client = new Client({
-  cloud: { id: process.env.ELASTIC_CLOUD_ID! },
+  node: process.env.ELASTIC_URL!,
   auth: { apiKey: process.env.ELASTIC_API_KEY! },
 });
 

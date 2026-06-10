@@ -5,7 +5,7 @@ let client: Client | null = null;
 export function getElasticClient(): Client {
   if (!client) {
     client = new Client({
-      cloud: { id: process.env.ELASTIC_CLOUD_ID! },
+      node: process.env.ELASTIC_URL!,
       auth: { apiKey: process.env.ELASTIC_API_KEY! },
     });
   }

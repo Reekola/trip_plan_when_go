@@ -5,13 +5,17 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm ci
+RUN npm install --production=false
 
 # Build the Next.js app
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+ARG NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+ARG NEXT_PUBLIC_APP_URL
+ENV NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
+ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 RUN npm run build
 
 # Production runner

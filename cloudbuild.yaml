@@ -1,0 +1,16 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args:
+    - build
+    - '--build-arg'
+    - 'NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${_MAPS_API_KEY}'
+    - '--build-arg'
+    - 'NEXT_PUBLIC_APP_URL=${_APP_URL}'
+    - '-t'
+    - 'gcr.io/$PROJECT_ID/trip-planner'
+    - '.'
+images:
+  - 'gcr.io/$PROJECT_ID/trip-planner'
+substitutions:
+  _MAPS_API_KEY: ''
+  _APP_URL: 'https://trip-planner-kjr7whn7wa-ey.a.run.app'

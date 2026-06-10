@@ -1,0 +1,229 @@
+openapi: 3.0.3
+info:
+  title: Trip Planner HTTP Tools
+  description: External data tools for the WhenGo trip planning agent. Register this spec in Google Cloud Agent Builder as an HTTP tool set.
+  version: 1.0.0
+servers:
+  - url: https://YOUR_CLOUD_RUN_URL
+    description: Production (update after Cloud Run deploy)
+
+paths:
+  /api/geocode:
+    get:
+      operationId: geocode
+      summary: Convert an address to latitude/longitude coordinates
+      parameters:
+        - name: address
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Place name or address to geocode
+      responses:
+        '200':
+          description: Coordinates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  lat:
+                    type: number
+                  lng:
+                    type: number
+
+  /api/weather:
+    get:
+      operationId: fetchWeather
+      summary: Hourly weather forecast and sunrise/sunset for a location and date
+      parameters:
+        - name: lat
+          in: query
+          required: true
+          schema:
+            type: number
+        - name: lon
+          in: query
+          required: true
+          schema:
+            type: number
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            example: "2026-06-14"
+      responses:
+        '200':
+          description: Weather and daylight data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  weather:
+                    type: object
+                  daylight:
+                    type: object
+
+  /api/traffic:
+    get:
+      operationId: fetchTraffic
+      summary: Traffic-aware travel duration. Use only for car or motorcycle.
+      parameters:
+        - name: origin
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: destination
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: departureTime
+          in: query
+          required: false
+          schema:
+            type: string
+            description: ISO 8601 datetime
+      responses:
+        '200':
+          description: Traffic data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  duration:
+                    type: integer
+                    description: Free-flow duration in seconds
+                  durationInTraffic:
+                    type: integer
+                    description: Traffic-aware duration in seconds
+                  distance:
+                    type: integer
+                    description: Distance in metres
+                  congestionLevel:
+                    type: string
+
+  /api/elevation:
+    get:
+      operationId: fetchElevation
+      summary: Elevation profile, total gain and loss. Use only for bicycle or walk.
+      parameters:
+        - name: originLat
+          in: query
+          required: true
+          schema:
+            type: number
+        - name: originLng
+          in: query
+          required: true
+          schema:
+            type: number
+        - name: destLat
+          in: query
+          required: true
+          schema:
+            type: number
+        - name: destLng
+          in: query
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: Elevation data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalGain:
+                    type: integer
+                    description: Total elevation gain in metres
+                  totalLoss:
+                    type: integer
+                    description: Total elevation loss in metres
+                  profile:
+                    type: array
+                    items:
+                      type: object
+
+  /api/rank:
+    post:
+      operationId: rankDepartures
+      summary: Score every departure window (5am–9pm) using collected data. Always call before composing the plan.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - weather
+                - daylight
+                - mode
+              properties:
+                weather:
+                  type: object
+                  description: Output of fetchWeather
+                daylight:
+                  type: object
+                  description: Output of fetchDaylight (from /api/weather response)
+                traffic:
+                  type: object
+                  nullable: true
+                  description: Output of fetchTraffic. Null for non-motorised modes.
+                elevation:
+                  type: object
+                  nullable: true
+                  description: Output of fetchElevation. Null for motorised modes.
+                mode:
+                  type: string
+                  enum: [car, motorcycle, bicycle, walk]
+      responses:
+        '200':
+          description: Scored departure windows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    time:
+                      type: string
+                    score:
+                      type: integer
+                    recommended:
+                      type: boolean
+                    reasons:
+                      type: array
+                      items:
+                        type: string
+                    scoreBreakdown:
+                      type: object
+
+  /api/trips:
+    post:
+      operationId: saveTrip
+      summary: Save a completed trip plan to Elastic storage.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: TripPlan object to persist
+      responses:
+        '200':
+          description: Saved trip with ID
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string

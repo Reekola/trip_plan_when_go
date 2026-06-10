@@ -27,3 +27,4 @@ next-env.d.ts
 # Cloud
 .gcloud/
 service-account-key.json
+.env.production

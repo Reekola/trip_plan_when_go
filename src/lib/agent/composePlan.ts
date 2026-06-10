@@ -1,4 +1,4 @@
-import { VertexAI } from '@google-cloud/vertexai';
+import { GoogleGenAI } from '@google/genai';
 import { VERTEX_CONFIG } from '@/lib/vertex';
 import type { DepartureWindow, DaylightData, Stop, TravelMode, UserPreferences } from '@/lib/types';
 
@@ -37,17 +37,18 @@ DEPARTURE_REASON: [text]
 NARRATIVE: [text]`;
 
   try {
-    const vertexAI = new VertexAI({
+    const ai = new GoogleGenAI({
+      vertexai: true,
       project: VERTEX_CONFIG.project,
       location: VERTEX_CONFIG.location,
     });
-    const model = vertexAI.getGenerativeModel({ model: VERTEX_CONFIG.model });
-    const result = await model.generateContent({
+    const result = await ai.models.generateContent({
+      model: VERTEX_CONFIG.model,
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 350 },
+      config: { temperature: 0.7, maxOutputTokens: 350 },
     });
 
-    const text = result.response.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    const text = result.text ?? '';
     const reasonMatch = text.match(/DEPARTURE_REASON:\s*(.+?)(?=NARRATIVE:|$)/s);
     const narrativeMatch = text.match(/NARRATIVE:\s*(.+)/s);
 
