@@ -14,9 +14,12 @@ export async function POST(req: NextRequest) {
     date: string;
     mode: TravelMode;
     compare?: boolean;
+    timeFrom?: number;
+    timeTo?: number;
+    clientHour?: number;
   };
 
-  const { origin, destination, date, mode, compare } = body;
+  const { origin, destination, date, mode, compare, timeFrom, timeTo, clientHour } = body;
 
   if (!origin || !destination) {
     return NextResponse.json({ error: 'origin and destination are required' }, { status: 400 });
@@ -50,12 +53,27 @@ export async function POST(req: NextRequest) {
         date,
         mode: mode ?? 'car',
         userId: DEFAULT_USER_ID,
+        timeFrom,
+        timeTo,
+        clientHour,
       });
     }
 
     return NextResponse.json(plan);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
-    return NextResponse.json({ error: message }, { status: 500 });
+    const stack = err instanceof Error ? err.stack : undefined;
+    console.error('Plan error:', message, stack);
+
+    if (message.includes('Geocoding failed') || message.includes('ZERO_RESULTS')) {
+      const match = message.match(/Geocoding failed for "([^"]+)"/);
+      const loc = match?.[1] ?? 'that location';
+      return NextResponse.json(
+        { error: `Couldn't find "${loc}". Try a more specific name, e.g. "Split, Croatia".` },
+        { status: 400 }
+      );
+    }
+
+    return NextResponse.json({ error: message, detail: stack?.split('\n').slice(0, 5).join(' | ') }, { status: 500 });
   }
 }

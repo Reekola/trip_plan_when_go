@@ -2,7 +2,7 @@ import { planTrip } from './planTrip';
 import { composePlan } from './composePlan';
 import type { TripPlan, TripRequest, TravelMode } from '@/lib/types';
 
-const COMPARE_MODES: TravelMode[] = ['car', 'bicycle'];
+const COMPARE_MODES: TravelMode[] = ['car'];
 
 export async function compareOptions(req: TripRequest): Promise<TripPlan> {
   // Run all modes in parallel

@@ -4,9 +4,6 @@ import type { TravelMode } from '@/lib/types';
 
 const MODES: { value: TravelMode; label: string; emoji: string }[] = [
   { value: 'car', label: 'Car', emoji: '🚗' },
-  { value: 'motorcycle', label: 'Moto', emoji: '🏍️' },
-  { value: 'bicycle', label: 'Bike', emoji: '🚲' },
-  { value: 'walk', label: 'Walk', emoji: '🚶' },
 ];
 
 export default function ModeSelector({
@@ -25,8 +22,8 @@ export default function ModeSelector({
           onClick={() => onChange(value)}
           className={`flex flex-col items-center justify-center py-3 rounded-lg border transition-all ${
             selected === value
-              ? 'bg-blue-600 border-blue-500 text-white'
-              : 'bg-slate-700 border-slate-600 text-slate-300 hover:bg-slate-600'
+              ? 'bg-[#C0D8F8] border-[#A0C0F0] text-[#1A3A5C]'
+              : 'bg-[#F0EDF8] border-[#DDD6EE] text-[#6B5F80] hover:bg-[#EAE6F5]'
           }`}
         >
           <span className="text-xl mb-1">{emoji}</span>

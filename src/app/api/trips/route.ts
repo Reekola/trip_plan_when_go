@@ -32,6 +32,15 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(trips);
 }
 
+export async function DELETE() {
+  const client = getElasticClient();
+  await client.deleteByQuery({
+    index: INDEXES.TRIPS,
+    query: { term: { userId: DEFAULT_USER_ID } },
+  });
+  return NextResponse.json({ ok: true });
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.json();
 

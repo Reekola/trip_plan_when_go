@@ -189,8 +189,8 @@ async function executeTool(
       return rankDepartures(
         args.weather as WeatherData,
         args.daylight as DaylightData,
-        (args.traffic as TrafficData | null) ?? null,
-        (args.elevation as ElevationData | null) ?? null,
+        null,
+        null,
         args.mode as TravelMode
       );
 

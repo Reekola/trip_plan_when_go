@@ -1,37 +1,87 @@
-import { getElasticClient, INDEXES } from '@/lib/elastic';
-import { mcpSearch, isMCPConfigured } from './elasticMCP';
 import type { POI, TravelMode } from '@/lib/types';
-type SearchHit = { _id?: string; _source?: unknown };
+
+const PLACE_TYPES = ['cafe', 'restaurant', 'gas_station'];
+
+interface NewPlacesResult {
+  id: string;
+  displayName?: { text: string };
+  types?: string[];
+  rating?: number;
+  formattedAddress?: string;
+  location?: { latitude: number; longitude: number };
+}
+
+function mapPlaceType(types: string[] = []): POI['type'] {
+  if (types.includes('cafe') || types.includes('coffee_shop')) return 'cafe';
+  if (types.includes('restaurant')) return 'restaurant';
+  if (types.includes('gas_station')) return 'fuel';
+  if (types.includes('park') || types.includes('tourist_attraction') || types.includes('natural_feature') || types.includes('national_park')) return 'viewpoint';
+  return 'rest_area';
+}
 
 export async function searchPOIs(
-  query: string,
-  mode: TravelMode,
+  _query: string,
+  _mode: TravelMode,
   lat: number,
   lon: number,
-  radiusKm = 10,
+  radiusKm = 40,
   size = 5
 ): Promise<POI[]> {
-  const esQuery = {
-    bool: {
-      must: [{ multi_match: { query, fields: ['name^2', 'description', 'type'] } }],
-      filter: [
-        { term: { modes: mode } },
-        { geo_distance: { distance: `${radiusKm}km`, location: { lat, lon } } },
-      ],
-    },
-  };
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  if (!apiKey) return [];
 
-  let hits: SearchHit[];
+  const radiusM = Math.min(radiusKm * 1000, 50000);
 
-  if (isMCPConfigured()) {
-    hits = await mcpSearch(INDEXES.POIS, { size, query: esQuery });
-  } else {
-    const client = getElasticClient();
-    const res = await client.search({ index: INDEXES.POIS, size, query: esQuery });
-    hits = res.hits.hits;
+  const results = await Promise.all(
+    PLACE_TYPES.map(async (type) => {
+      const res = await fetch('https://places.googleapis.com/v1/places:searchNearby', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Goog-Api-Key': apiKey,
+          'X-Goog-FieldMask': 'places.id,places.displayName,places.types,places.rating,places.formattedAddress,places.location',
+        },
+        body: JSON.stringify({
+          includedTypes: [type],
+          maxResultCount: 5,
+          locationRestriction: {
+            circle: {
+              center: { latitude: lat, longitude: lon },
+              radius: radiusM,
+            },
+          },
+        }),
+      });
+      const data = await res.json() as { places?: NewPlacesResult[] };
+      return data.places ?? [];
+    })
+  );
+
+  const seen = new Set<string>();
+  const pois: POI[] = [];
+  const perType = Math.max(2, Math.ceil(size / results.length));
+
+  for (const group of results) {
+    let count = 0;
+    for (const place of group) {
+      if (count >= perType) break;
+      if (seen.has(place.id)) continue;
+      seen.add(place.id);
+      count++;
+      pois.push({
+        id: place.id,
+        name: place.displayName?.text ?? 'Unknown',
+        type: mapPlaceType(place.types),
+        modes: ['car'],
+        rating: place.rating,
+        description: place.formattedAddress,
+        location: {
+          lat: place.location?.latitude ?? lat,
+          lng: place.location?.longitude ?? lon,
+        },
+      });
+    }
   }
 
-  return hits
-    .filter((h): h is typeof h & { _id: string } => h._id !== undefined)
-    .map((h) => ({ ...(h._source as Omit<POI, 'id'>), id: h._id }));
+  return pois.slice(0, size);
 }

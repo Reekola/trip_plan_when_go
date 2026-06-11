@@ -1,4 +1,4 @@
-export type TravelMode = 'car' | 'motorcycle' | 'bicycle' | 'walk';
+export type TravelMode = 'car';
 
 export interface TripRequest {
   origin: string;
@@ -6,6 +6,9 @@ export interface TripRequest {
   date: string;
   mode: TravelMode;
   userId?: string;
+  timeFrom?: number;
+  timeTo?: number;
+  clientHour?: number;
 }
 
 export interface DepartureWindow {
@@ -31,6 +34,12 @@ export interface Stop {
   distanceFromRoute?: number;
 }
 
+export interface LiveTraffic {
+  delayMinutes: number;
+  forHour: string;
+  isLive: boolean;
+}
+
 export interface TripPlan {
   id?: string;
   origin: string;
@@ -44,6 +53,7 @@ export interface TripPlan {
   narrative: string;
   duration: number;
   distance: number;
+  liveTraffic?: LiveTraffic;
   rating?: number;
   createdAt?: string;
 }

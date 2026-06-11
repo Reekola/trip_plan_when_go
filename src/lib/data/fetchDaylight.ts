@@ -9,13 +9,20 @@ export async function fetchDaylight(lat: number, lon: number, date: string): Pro
   url.searchParams.set('end_date', date);
   url.searchParams.set('timezone', 'auto');
 
-  const res = await fetch(url.toString(), { next: { revalidate: 3600 } });
-  if (!res.ok) throw new Error(`Open-Meteo astronomy error ${res.status}`);
-  const data = await res.json();
-
-  return {
-    sunrise: data.daily.sunrise[0] as string,
-    sunset: data.daily.sunset[0] as string,
-    date,
-  };
+  try {
+    const res = await fetch(url.toString(), { cache: 'no-store' });
+    if (!res.ok) {
+      console.error(`Open-Meteo astronomy error ${res.status} for ${lat},${lon} on ${date}`);
+      return { sunrise: `${date}T06:00:00`, sunset: `${date}T20:00:00`, date };
+    }
+    const data = await res.json();
+    return {
+      sunrise: data.daily.sunrise[0] as string,
+      sunset: data.daily.sunset[0] as string,
+      date,
+    };
+  } catch (err) {
+    console.error('fetchDaylight failed:', err instanceof Error ? err.message : err);
+    return { sunrise: `${date}T06:00:00`, sunset: `${date}T20:00:00`, date };
+  }
 }

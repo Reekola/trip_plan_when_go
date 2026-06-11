@@ -4,9 +4,6 @@ import type { UserPreferences } from '@/lib/types';
 const DEFAULT_PREFERENCES: Omit<UserPreferences, 'userId'> = {
   modes: {
     car: { preferScenic: false, avoidHills: false, stopTypes: ['cafe', 'fuel'] },
-    motorcycle: { preferScenic: true, avoidHills: false, stopTypes: ['viewpoint', 'cafe'] },
-    bicycle: { preferScenic: true, avoidHills: false, stopTypes: ['cafe', 'viewpoint'] },
-    walk: { preferScenic: true, avoidHills: false, stopTypes: ['cafe', 'viewpoint'] },
   },
   learnedPatterns: [],
   tripCount: 0,

@@ -5,7 +5,7 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Trip Planner — Leave at the right time',
+  title: 'WhenGo — Leave at the right time',
   description:
     'AI-powered trip planning that tells you exactly when to leave, combining traffic, weather, daylight, and elevation.',
 };

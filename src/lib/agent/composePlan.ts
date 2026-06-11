@@ -12,12 +12,13 @@ interface ComposePlanInput {
   daylight: DaylightData;
   preferences?: UserPreferences;
   events?: Array<{ name: string; type: string }>;
+  holiday?: { name: string; countryCode: string; isEve: boolean; isEve2: boolean; isReturn: boolean } | null;
 }
 
 export async function composePlan(
   input: ComposePlanInput
 ): Promise<{ narrative: string; departureReason: string }> {
-  const { origin, destination, date, mode, bestWindow, stops, daylight, preferences, events } = input;
+  const { origin, destination, date, mode, bestWindow, stops, daylight, preferences, events, holiday } = input;
 
   const prompt = `You are a concise trip planning assistant. Generate two things for this trip.
 
@@ -26,11 +27,12 @@ Recommended departure: ${bestWindow.time} (score ${bestWindow.score}/100)
 Key factors: ${bestWindow.reasons.join('; ')}
 Sunrise: ${new Date(daylight.sunrise).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })}, Sunset: ${new Date(daylight.sunset).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })}
 Stops: ${stops.map((s) => s.name).join(', ') || 'none planned'}
+${holiday ? (() => { const cn = new Intl.DisplayNames(['en'], { type: 'region' }).of(holiday.countryCode) ?? holiday.countryCode; return holiday.isReturn ? `Day after ${holiday.name} in ${cn} — heavy return traffic expected; mention this.` : holiday.isEve ? `Eve of ${holiday.name} in ${cn} tomorrow — heavy outbound traffic today; mention this.` : holiday.isEve2 ? `${holiday.name} in ${cn} is in 2 days — traffic starting to build; mention this.` : `Public holiday: ${holiday.name} in ${cn} — non-typical traffic patterns; mention this.`; })() : ''}
 ${events?.length ? `Destination events: ${events.map((e) => e.name).join(', ')}` : ''}
 ${preferences?.learnedPatterns?.length ? `Traveller note: ${preferences.learnedPatterns.slice(-2).join(', ')}` : ''}
 
 DEPARTURE_REASON: One sentence (max 30 words) starting "Leave at ${bestWindow.time} because…" explaining WHY this time, citing specific factors.
-NARRATIVE: 2–3 sentences describing what the trip will be like. Be specific and practical.
+NARRATIVE: 2–3 sentences describing what the trip will be like. Be specific and practical. If it's a holiday, mention how it affects traffic.
 
 Output exactly:
 DEPARTURE_REASON: [text]

@@ -19,6 +19,6 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const windows = rankDepartures(weather, daylight, traffic ?? null, elevation ?? null, mode);
+  const windows = rankDepartures(weather, daylight, null, null, mode);
   return NextResponse.json(windows);
 }
