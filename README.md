@@ -1,45 +1,129 @@
-# WhenGo — Trip Departure Planner
+# WhenGo — Leave at the right time
 
-An AI agent that tells you not just **how** to get from A to B, but **exactly when to leave** — combining traffic, weather, daylight, and elevation across car, motorcycle, bicycle, and walking modes.
+AI-powered trip departure planner that tells you **when to leave**, not just how to get there — combining live traffic, weather, daylight, and public holiday detection across every country your route passes through.
 
 Built for the **Google Cloud Rapid Agent Hackathon** (Elastic track).
 
+**Live:** https://trip-planner-kjr7whn7wa-ez.a.run.app
+
+---
+
 ## What makes it different from Google Maps
 
-Google Maps answers "given a time, how do I get there?" WhenGo answers: *"given my whole day and preferences, when should I leave?"*
+Google Maps answers "given a time, how do I get there?" WhenGo answers: *"given my whole day, when should I leave?"*
 
-- **Explainable departure recommendations** — every suggestion has a plain-language reason (e.g. "Leave at 09:00 because traffic clears after the morning peak and you'll arrive before the afternoon thunderstorm builds over the Downs")
-- **Mode comparison with a recommendation** — "drive or cycle Saturday?" returns a reasoned answer with a winner, not just two times side by side
-- **Preference learning** — the agent remembers your travel style (scenic cafés, avoids hills) via Elastic, so trip two is smarter than trip one
-- **Destination events as timing inputs** — "there's a market Saturday morning — leave earlier to arrive in time"
+- **Per-hour traffic scoring** — real delay data from the Google Routes API for every candidate departure hour, not estimated averages
+- **Holiday detection for transit countries** — detects public holidays not just at origin and destination, but in every country the route passes through, sampled at 19 waypoints
+- **Live traffic banner** — shows current delays (or historical expected delays for future dates) on your specific route
+- **Explainable recommendations** — Gemini writes a plain-language reason for every suggestion
+- **Departure window selector** — filter to Morning / Midday / Afternoon / Evening, with past windows auto-disabled for today
+
+---
 
 ## Stack
 
 | Layer | Technology |
 |---|---|
-| Frontend + API | Next.js 15 (App Router) |
+| Frontend + API | Next.js 15 (App Router, standalone output) |
 | Styling | Tailwind CSS |
-| Map | Google Maps JavaScript API |
-| Agent orchestration | Google Cloud Agent Builder — Gemini 2.0 Flash function calling |
-| Memory + search | Elastic Cloud Serverless — MCP server integration |
-| Weather + daylight | Open-Meteo (free, no key required) |
-| Traffic | Google Routes API v2 |
-| Elevation | Open-Elevation (free, no key required) |
+| Map | Google Maps JavaScript API + Directions |
+| Autocomplete | Google Places API |
 | Geocoding | Google Geocoding API |
-| Deploy | Cloud Run + Docker |
+| Traffic | Google Routes API (`TRAFFIC_AWARE_OPTIMAL`) |
+| AI narrative | Vertex AI — Gemini 3 Flash |
+| Trip storage | Elastic Cloud Serverless |
+| Weather | Open-Meteo (free, no key required) |
+| Daylight | Sunrise-Sunset API (free, no key required) |
+| Holidays | Nager.Date public holiday API (free) |
+| Deploy | Cloud Run + Cloud Build |
 
-## Prerequisites
+---
+
+## How the agent works
+
+```
+User submits origin / destination / date / window
+    │
+    ▼
+POST /api/plan
+    │
+    ├── Geocode origin + destination
+    ├── Sample 19 route waypoints → detect transit countries
+    ├── Fetch public holidays for all countries on the route
+    ├── Fetch hourly weather forecast (Open-Meteo)
+    ├── Fetch daylight window (Sunrise-Sunset API)
+    ├── Fetch per-hour traffic delays (Google Routes API) — parallel
+    │
+    ├── rankDepartures() — score every candidate hour
+    │       Traffic 50% · Weather 30% · Daylight 20%
+    │       Holiday penalty applied to all hours on affected days
+    │
+    ├── searchPOIs() — find stops along the route (Elastic)
+    ├── composePlan() — Gemini narrative + departure reason
+    └── saveTrip() — persist to Elastic
+```
+
+---
+
+## Departure scoring
+
+`src/lib/agent/rankDepartures.ts` rates every hour in the selected window:
+
+- **Traffic** (50%) — ratio of delay vs free-flow duration; 0 = no delay, 1 = standstill
+- **Weather** (30%) — precipitation + wind penalty, temperature comfort bonus
+- **Daylight** (20%) — penalty for departing near or after sunset
+- **Holiday** — flat penalty applied when a public holiday falls on the travel date in any transit country; shown as a note on affected windows
+
+Windows are sorted best-first. The top window is marked as recommended.
+
+---
+
+## Project structure
+
+```
+src/
+├── app/
+│   ├── page.tsx                  # Home — origin, destination, date, window
+│   ├── trips/[id]/page.tsx       # Results — departure card, map, scores, stops
+│   ├── history/page.tsx          # Past trips from Elastic
+│   ├── preferences/page.tsx      # Travel style preferences
+│   └── api/
+│       ├── plan/                 # POST — orchestration entry point
+│       ├── autocomplete/         # GET — Places Autocomplete proxy
+│       ├── logo/                 # GET — serves logo.png
+│       ├── trips/                # GET|POST — Elastic trip store + ratings
+│       └── ...
+├── components/
+│   ├── LocationInput.tsx         # Debounced autocomplete input
+│   ├── Map.tsx                   # Google Maps route renderer
+│   ├── ScoreBreakdown.tsx        # Traffic / Daylight / Weather bars
+│   └── StopCard.tsx              # POI stop card
+└── lib/
+    ├── agent/
+    │   ├── planTrip.ts           # Main orchestrator
+    │   ├── rankDepartures.ts     # Hourly scoring algorithm
+    │   ├── composePlan.ts        # Gemini narrative generation
+    │   ├── searchPOIs.ts         # Elastic POI search
+    │   └── selectStops.ts        # Stop selection logic
+    └── data/
+        ├── fetchWeather.ts       # Open-Meteo
+        ├── fetchTraffic.ts       # Google Routes API
+        ├── fetchDaylight.ts      # Sunrise-Sunset API
+        ├── fetchHolidays.ts      # Nager.Date API
+        └── geocode.ts            # Google Geocoding + reverse geocode
+```
+
+---
+
+## Local setup
+
+### Prerequisites
 
 - Node.js 18+
-- An [Elastic Cloud Serverless](https://cloud.elastic.co) account (free trial works)
-- A [Google Cloud](https://console.cloud.google.com) project with the following APIs enabled:
-  - Maps JavaScript API
-  - Geocoding API
-  - Routes API
+- Google Cloud project with these APIs enabled: Maps JavaScript, Places, Geocoding, Routes
+- Elastic Cloud Serverless account (free trial works)
 
-## Setup
-
-### 1. Clone and install
+### 1. Install
 
 ```bash
 git clone https://github.com/YOUR_USERNAME/trip_planner.git
@@ -53,110 +137,50 @@ npm install
 cp .env.local.example .env.local
 ```
 
-Open `.env.local` and fill in:
-
 | Variable | Where to get it |
 |---|---|
-| `ELASTIC_CLOUD_ID` | Elastic Cloud console → your deployment → Cloud ID |
-| `ELASTIC_API_KEY` | Elastic Cloud → API Keys → Create key |
 | `GOOGLE_MAPS_API_KEY` | Google Cloud Console → APIs & Services → Credentials |
-| `GOOGLE_ROUTES_API_KEY` | Same key — enable Routes API on it |
-| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Same key (restrict by domain in production) |
+| `GOOGLE_ROUTES_API_KEY` | Same key — enable Routes API |
+| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | Same key (restrict by HTTP referrer in production) |
+| `ELASTIC_URL` | Elastic Cloud → your project → endpoint URL |
+| `ELASTIC_API_KEY` | Elastic Cloud → API Keys → Create key |
+| `GOOGLE_CLOUD_PROJECT_ID` | Your GCP project ID |
+| `GOOGLE_CLOUD_REGION` | e.g. `europe-west3` |
 
-### 3. Create Elastic indexes and seed demo data
-
-```bash
-npx tsx scripts/setup-elastic.ts
-npx tsx scripts/seed-data.ts
-```
-
-This creates 4 indexes (`trip-planner-users`, `trip-planner-trips`, `trip-planner-pois`, `trip-planner-events`) and seeds points of interest along the London → Brighton demo route.
-
-### 4. Run
+### 3. Run
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Try **London → Brighton** with mode **bicycle** for a date next weekend to see the full departure reasoning.
+Open [http://localhost:3000](http://localhost:3000). Try **Vienna → Poreč** on a date with a Slovenian public holiday to see transit country holiday detection in action.
 
-## How the agent works
-
-```
-User request
-    │
-    ▼
-POST /api/plan
-    │
-    ├─ (USE_AGENT_BUILDER=true)  → Gemini 2.0 Flash function-calling loop
-    │                                  getUserContext → geocode → parallel data fetches
-    │                                  → rankDepartures → searchPOIs + queryEvents
-    │                                  → saveTrip → JSON plan
-    │
-    └─ (USE_AGENT_BUILDER=false) → planTrip() direct orchestration (same tools, no LLM loop)
-```
-
-**Departure scoring** (`src/lib/agent/rankDepartures.ts`) rates every hour 5 am–9 pm with mode-weighted factors:
-- Car/motorcycle: traffic 50%, weather 30%, daylight 20%
-- Bicycle: weather 45%, daylight 35%, elevation 20% — hard zero after sunset
-- Walk: weather 60%, daylight 40% — hard zero after sunset
-
-## Elastic integration
-
-The project uses Elastic Cloud Serverless for:
-- **POI search** — hybrid BM25 + ELSER semantic search (`trip-planner-pois` index)
-- **Event lookup** — destination events filtered by date and location (`trip-planner-events`)
-- **Trip persistence** — completed plans stored and retrieved (`trip-planner-trips`)
-- **User preferences** — travel style profile updated after each trip (`trip-planner-users`)
-
-The Elastic MCP server is registered in Google Cloud Agent Platform and used as the tool source for Elastic operations in the agent loop.
-
-## Project structure
-
-```
-src/
-├── app/
-│   ├── page.tsx              # Home — origin, destination, mode, date
-│   ├── trips/[id]/           # Trip result — departure reasoning layout
-│   ├── history/              # Past trips from Elastic
-│   ├── preferences/          # Learned travel style
-│   └── api/
-│       ├── plan/             # POST — agent orchestration entry point
-│       ├── geocode/          # GET — address → lat/lng
-│       ├── weather/          # GET — Open-Meteo forecast
-│       ├── traffic/          # GET — Google Routes traffic
-│       ├── elevation/        # GET — elevation profile
-│       ├── rank/             # POST — departure window scoring
-│       └── trips/            # GET|POST — Elastic trip store
-└── lib/
-    ├── agent/
-    │   ├── agentBuilder.ts   # Gemini function-calling loop
-    │   ├── planTrip.ts       # Direct orchestration path
-    │   ├── rankDepartures.ts # Departure scoring algorithm
-    │   ├── composePlan.ts    # Gemini narrative generation
-    │   ├── searchPOIs.ts     # Elastic hybrid search
-    │   └── queryEvents.ts    # Elastic event lookup
-    └── data/
-        ├── fetchWeather.ts   # Open-Meteo
-        ├── fetchTraffic.ts   # Google Routes API
-        ├── fetchElevation.ts # Open-Elevation
-        └── geocode.ts        # Google Geocoding API
-```
+---
 
 ## Deploy to Cloud Run
 
 ```bash
+# Build image
+gcloud builds submit --config cloudbuild.yaml \
+  --substitutions "_MAPS_API_KEY=YOUR_KEY,_APP_URL=https://YOUR_SERVICE_URL"
+
+# Deploy
 gcloud run deploy trip-planner \
-  --source . \
-  --port 8080 \
-  --region europe-west3 \
-  --set-env-vars USE_AGENT_BUILDER=true \
-  --set-env-vars GOOGLE_CLOUD_PROJECT_ID=whengoproject \
-  --set-env-vars GOOGLE_CLOUD_REGION=europe-west3
+  --image gcr.io/YOUR_PROJECT/trip-planner \
+  --region europe-west4 \
+  --platform managed \
+  --allow-unauthenticated
+
+# Set runtime env vars
+gcloud run services update trip-planner \
+  --region europe-west4 \
+  --set-env-vars "ELASTIC_URL=...,ELASTIC_API_KEY=...,GOOGLE_MAPS_API_KEY=...,GOOGLE_CLOUD_PROJECT_ID=..."
 ```
 
-Set secrets via `--set-secrets` or Secret Manager for the API keys.
+Gemini on Vertex AI uses Application Default Credentials — no separate API key needed on Cloud Run, just ensure the service account has `roles/aiplatform.user`.
+
+---
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT
